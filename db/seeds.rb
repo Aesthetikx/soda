@@ -14,9 +14,11 @@ end
 make_recipe_for = method(:make_recipe).to_proc.curry
 
 Company.create!(name: 'Coke').tap do |coke|
+  coke.users.create!(email: 'user@cocaco.la', password: 'password')
   ['Coca-Cola', 'Sprite', 'Mellow Yellow'].each(&make_recipe_for[coke])
 end
 
 Company.create!(name: 'Pepsi').tap do |pepsi|
+  pepsi.users.create!(email: 'user@pepsi.co', password: 'password')
   ['Pepsi', 'Mountain Dew', 'Mug Root Beer'].each(&make_recipe_for[pepsi])
 end
