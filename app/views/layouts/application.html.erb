@@ -6,9 +6,14 @@
 
     <%= stylesheet_link_tag    'application', media: 'all', 'data-turbolinks-track': 'reload' %>
     <%= javascript_include_tag 'application', 'data-turbolinks-track': 'reload' %>
+    <%= stylesheet_link_tag href='//fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic' %>
+    <%= stylesheet_link_tag href='//cdn.rawgit.com/necolas/normalize.css/master/normalize.css' %>
+    <%= stylesheet_link_tag href='//cdn.rawgit.com/milligram/milligram/master/dist/milligram.min.css' %>
   </head>
 
   <body>
-    <%= yield %>
+    <div class="container">
+      <%= yield %>
+    </div>
   </body>
 </html>
