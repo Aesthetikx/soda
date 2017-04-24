@@ -11,8 +11,8 @@ def make_recipe(title)
   Recipe.create!(title: title, instructions: make_instructions)
 end
 
-Company.create!(name: 'Coke')
+Company.create!(name: 'Coke', subdomain: 'coke')
 ['Coca-Cola', 'Sprite', 'Mellow Yellow'].each(&method(:make_recipe))
 
-Company.create!(name: 'Pepsi')
+Company.create!(name: 'Pepsi', subdomain: 'pepsi')
 ['Pepsi', 'Mountain Dew', 'Mug Root Beer'].each(&method(:make_recipe))
