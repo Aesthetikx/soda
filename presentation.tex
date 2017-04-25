@@ -1,0 +1,656 @@
+\documentclass{beamer}
+\usepackage{minted}
+\usepackage{fancyvrb}
+\usepackage{graphicx}
+\usepackage[ampersand]{easylist}
+
+\usetheme{metropolis}
+
+% Custom Fonts
+\usepackage[default]{sourcecodepro}
+\usepackage[default]{sourcesanspro}
+\usepackage{fontawesome}
+
+% Custom Colors
+\definecolor{mOrange}{HTML}{F05A2A}
+\definecolor{mBlack}{HTML}{1B1C1D}
+\definecolor{mWhite}{HTML}{FCFCFC}
+\definecolor{mLightGray}{HTML}{F0F0F0}
+
+\setbeamercolor{normal text}{fg=mBlack,bg=mWhite}
+\setbeamercolor{alerted text}{fg=mOrange,bg=mWhite}
+\setbeamercolor{progress bar}{fg=mOrange}
+
+% Syntax Highlighting
+\usemintedstyle{lovelace}
+
+\setbeamertemplate{frame footer}{\textcolor{gray}{\texttt{A2RB}}}
+
+% Custom frames for minted
+\newenvironment{slide}[1]
+  {\begin{frame}[fragile=singleslide]{#1}%
+  }
+  {\end{frame}
+  }
+
+\newenvironment{langslide}[2]
+  {\VerbatimEnvironment
+   \begin{slide}{#2}
+   \begin{minted}[autogobble]{#1}%
+  }
+  {\end{minted}
+   \end{slide}
+  }
+
+\newenvironment{rubyslide}[1]
+  {\VerbatimEnvironment
+   \begin{langslide}{ruby}{#1}%
+  }
+  {\end{langslide}
+  }
+
+\newenvironment{psqlslide}[1]
+  {\VerbatimEnvironment
+   \begin{langslide}{perl}{#1}%
+  }
+  {\end{langslide}
+  }
+
+\newenvironment{bashslide}[1]
+  {\VerbatimEnvironment
+   \begin{langslide}{bash}{#1}%
+  }
+  {\end{langslide}
+  }
+
+%images
+\write18{curl -o day2.jpg http://i.imgur.com/PbXhpE1.jpg}
+\write18{curl -o later.jpg https://s-media-cache-ak0.pinimg.com/originals/16/ad/bc/16adbc98b3be8701b58437468812831b.jpg}
+\write18{curl -o ytho.jpg http://i.imgur.com/knj0Uy6.jpg}
+\write18{curl -o idea.jpg http://media.liveauctiongroup.net/i/7919/9725141_2.jpg?v=8CD038C282C3AC0}
+
+\title{Multi-Tenancy on Rails}
+\subtitle{
+  \textcolor{lightgray}{
+    \textit{
+      An Ann Arbor Ruby Brigade Feature Length Presentation \\
+      \textcolor{mLightGray}{
+        {\scriptsize you can go home when the number in the bottom right is 56ish} \\
+        {\tiny i know you cant see the numbers now but wait a few slides} \\
+      }
+    }
+  }
+}
+\date{April 25}
+\author{John DeSilva}
+\institute{Revela, Inc.}
+
+\begin{document}
+  \maketitle
+
+  \section{What is Multi-Tennancy?}
+
+  \begin{frame}{What is Multi-Tennancy?}
+    \begin{quote}
+      The term ``software multitenancy'' refers to a software architecture in
+      which a single instance of software runs on a server and serves multiple
+      tenants. A tenant is a group of users who share a common access with
+      specific privileges to the software instance.
+    \end{quote}
+
+    - Wikipedia
+  \end{frame}
+
+  \begin{frame}{What is Multi-Tennancy?}
+    In short, we want to scale our customer base by sliding the heroku slider
+    to the right instead of creating new heroku apps with a new db per
+    customer. \\
+    \vspace{1cm}\\
+    \textcolor{gray}{\textit{{\tiny if we need to add databases to scale to our
+    data size or for customer reasons,\\
+    thats fine,\\
+    but only one app cluster\\
+    (or a multi zone federated cluster)}}}
+
+  \end{frame}
+
+  \section{Types of Tennancy}
+
+  \begin{frame}{`Multi User' Applications}
+    Some applications are used by many individual users. Often B2C.
+    \begin{itemize}
+      \item Twitter
+      \item Gmail
+      \item Spotify
+    \end{itemize}
+  \end{frame}
+
+  \begin{frame}{`Tenantless' Applications}
+    Many applications do not have tenancy at all. Lots of low touch news, marketing, and cooking sites here.
+    \begin{itemize}
+      \item Allrecipes
+      \item 4chan
+      \item Darksky
+      \item Buzzfeed
+      \item Wikipedia
+    \end{itemize}
+  \end{frame}
+
+  \begin{frame}{`Organization' Applications}
+    Often, enterprise applications have a `shared dataset' amongst users of
+    different organizations. B2B SaaS products tend to fall into this bucket.
+    \begin{itemize}
+      \item Basecamp
+      \item Slack
+      \item Salesforce
+    \end{itemize}
+  \end{frame}
+
+  \begin{frame}{`Gray Area' Applications}
+    Some applications do not clearly fall into one of the previous three categories.
+    \begin{itemize}
+      \item Github
+      \item Shopify
+    \end{itemize}
+  \end{frame}
+
+  \begin{bashslide}{Demo 1 / 3}
+    $ git checkout no_tennancy
+  \end{bashslide}
+
+  %
+  % Single Database Scoping
+  %
+  \section{(1/2): Query Scoping Tennancy}
+
+  \begin{rubyslide}{Straightforward}
+    class RecipesController
+      def show
+        @recipe = Recipe.find(params[:id])
+      end
+    end
+  \end{rubyslide}
+
+  \begin{slide}{Straightforward}
+    \includegraphics[scale=0.22]{day2.jpg}
+  \end{slide}
+
+  \begin{rubyslide}{Pretty Straightforward}
+    class RecipesController
+      def show
+        @recipe = current_user.recipes
+                              .find(params[:id])
+      end
+    end
+  \end{rubyslide}
+
+  \begin{rubyslide}{Kinda Straightforward}
+    class RecipesController
+      def show
+        @recipe = current_user
+                  .company
+                  .recipes
+                  .find(params[:id])
+      end
+    end
+  \end{rubyslide}
+
+  \begin{rubyslide}{Somewhat Straightforward}
+    class RecipesController
+      before_action :set_recipe # Rails-it-up-a-notch!
+
+      def show; end
+
+      def set_recipe
+        @recipe = recipes.find(params[:id])
+      end
+
+      delegate :company, to: :current_user
+      delegate :recipes, to: :company
+    end
+  \end{rubyslide}
+
+  \begin{bashslide}{Demo 2 / 3}
+    $ git checkout scoping
+  \end{bashslide}
+
+  \begin{slide}{}
+    \includegraphics[scale=0.6]{later.jpg}
+  \end{slide}
+
+  \begin{psqlslide}{\texttt{has\_mariana\_trench}}
+    Companies
+    \-> Buildings
+        \-> Units
+            \-> Leases
+                \-> Lease Memberships
+                    \-> Tenants
+                        \-> Payments
+  \end{psqlslide}
+
+  \begin{psqlslide}{`Display a list of Payments'}
+    select * from payments
+    join tenants on tenants.id = payments.tenant_id
+    join lms on lms.tenant_idid = tenants.id
+    join leases on leases.id = lms.lease_id
+    join units on units.id = leases.unit_id
+    join buildings on buildings.id = units.building_id
+    join companies on companies.id = buildings.company_id
+    where companies.id = $1;
+
+    $1 => current_user.company_id;
+  \end{psqlslide}
+
+  \begin{slide}{}
+    \includegraphics{ytho.jpg}
+  \end{slide}
+
+  \begin{slide}{Why not denormalize \texttt{customer\_id?}}
+    \begin{easylist}[itemize]
+      & The database schema should (probably?) represent your application's data, not your application's data performance needs or access paterns.
+      && \textit{This is CRUD, not Twitter}
+
+      & Now you have to have a \texttt{Customer} at arms reach at the point of \texttt{Payment} creation.
+      && \textit{You might, but hey - think of the children. Erm, I mean, background jobs and one off scripts}
+
+      & Hey, what else could use a \texttt{customer\_id}?
+      && \textit{It will start to get sprinkled on everywhere, I promise}
+    \end{easylist}
+  \end{slide}
+
+  \begin{slide}{Why not put \texttt{customer\_id?} on every table?}
+    I'm pretty sure Citus Data's commercial pg\_shard evolution actually does
+    this or something similar
+  \end{slide}
+
+  %
+  % Schema Tennancy
+  %
+  %\section{(2/2): Schema-Based Multi Tennancy}
+  \begin{slide}{}
+    \includegraphics[scale=1.3]{schema.png}
+  \end{slide}
+
+  \begin{slide}{Lingo}
+    Schema
+  \end{slide}
+
+  \begin{slide}{Lingo - Database Schema}
+    \alert{Database} Schema \\
+    \begin{quote}
+      The term `schema' refers to the organization of data as a blueprint of
+      how the database is constructed (divided into database tables in the case
+      of relational databases). The formal definition of a database schema is a
+      set of formulas (sentences) called integrity constraints imposed on a
+      database.
+    \end{quote}
+
+    - Wikipedia
+  \end{slide}
+
+  \begin{rubyslide}{Lingo - Database Schema}
+    # db/schema.rb
+
+    ActiveRecord::Schema.define(
+      version: 20170424000157
+    ) do
+
+      create_table "companies", force: :cascade do |t|
+        t.string   "name"
+
+        # ...
+  \end{rubyslide}
+
+  \begin{psqlslide}{Lingo - Database Schema}
+soda $ psql soda_development
+
+[local] john@soda_development=# \dt
+
+               List of relations
+
+ Schema |         Name         | Type  | Owner 
+--------+----------------------+-------+-------
+ public | ar_internal_metadata | table | john
+ public | companies            | table | john
+ public | recipes              | table | john
+ public | schema_migrations    | table | john
+(4 rows)
+  \end{psqlslide}
+
+  \begin{psqlslide}{Lingo - Database Schema}
+[local] john@soda_development=# \d recipes
+
+          Table "public.recipes"
+
+    Column    |            Type             | Modifiers
+--------------+-----------------------------+----------
+ id           | integer                     | not null
+ title        | character varying           |
+ instructions | character varying           |
+ created_at   | timestamp without time zone | not null
+ updated_at   | timestamp without time zone | not null
+ company_id   | integer                     |
+  \end{psqlslide}
+
+  \begin{slide}{Lingo - PostgreSQL Schema}
+    \alert{PostgreSQL} Schema \\
+    \begin{quote}
+      A database contains one or more named schemas, which in turn contain tables. Schemas also contain other kinds of named objects, including data types, functions, and operators. The same object name can be used in different schemas without conflict; for example, both schema1 and myschema can contain tables named mytable. Unlike databases, schemas are not rigidly separated: a user can access objects in any of the schemas in the database they are connected to, if they have privileges to do so.
+    \end{quote}
+    - https://www.postgresql.org/docs/9.6/static/ddl-schemas.html
+  \end{slide}
+
+  \begin{slide}{Lingo - PostgreSQL Schema}
+    \textit{There are several reasons why one might want to use schemas:}
+    \begin{itemize}
+      \item To allow many users to use one database without interfering with each other.
+      \item To organize database objects into logical groups to make them more manageable.
+      \item Third-party applications can be put into separate schemas so they do not collide with the names of other objects.
+    \end{itemize}
+  \end{slide}
+
+  \begin{psqlslide}{Lingo - PostgreSQL Schema}
+    [local] john@soda_development=# \dn
+
+      List of schemas
+
+      Name  |  Owner
+    --------+----------
+     public | postgres
+
+    (1 row )
+  \end{psqlslide}
+
+  \begin{psqlslide}{Lingo - PostgreSQL Schema}
+    [local] john@soda_development=# show search_path;
+
+       search_path
+    -----------------
+     "$user", public
+    (1 row)
+
+    Time: 0.114 ms
+  \end{psqlslide}
+
+  \begin{slide}{Mr. Krabs I Have An Idea}
+    \includegraphics[scale=0.6]{idea.jpg}
+  \end{slide}
+
+  \begin{psqlslide}{Lingo - PostgreSQL Schema}
+    [local] john@soda_development=# \dn
+
+      List of schemas
+
+      Name  |  Owner
+    --------+----------
+     coke   | john
+     pepsi  | john
+     public | postgres
+    (3 rows)
+  \end{psqlslide}
+
+  \begin{psqlslide}{Lingo - PostgreSQL Schema}
+    [local] john@soda_development=# \dt *.*
+
+            List of relations
+
+ Schema   | Name     | Type  | Owner
+----------+----------+-------+-------
+ coke     | recipes  | table | john
+ pepsi    | recipes  | table | john
+ public   | recipes  | table | john
+
+    ...
+
+(74 rows)
+  \end{psqlslide}
+
+  \begin{psqlslide}{Public Recipes}
+    [local] john@soda_development
+
+    # select title from recipes;
+
+     title 
+    -------
+    (0 rows)
+
+    Time: 0.405 ms
+  \end{psqlslide}
+
+  \begin{psqlslide}{Coke Recipes}
+    [local] john@soda_development
+
+    # select title from coke.recipes;
+
+         title     
+    ---------------
+     Coca-Cola
+     Sprite
+     Mellow Yellow
+    (3 rows)
+
+    Time: 0.355 ms
+  \end{psqlslide}
+
+  \begin{psqlslide}{Pepsi Recipes}
+    [local] john@soda_development
+
+    # select title from pepsi.recipes;
+
+         title     
+    ---------------
+     Pepsi
+     Mountain Dew
+     Mug Root Beer
+    (3 rows)
+
+    Time: 0.292 ms
+  \end{psqlslide}
+
+  \begin{psqlslide}{Pepsi Recipes, Magically}
+    [local] john@soda_development
+    # set search path to pepsi;
+    # select title from recipes;
+
+         title     
+    ---------------
+     Pepsi
+     Mountain Dew
+     Mug Root Beer
+    (3 rows)
+
+    Time: 0.292 ms
+  \end{psqlslide}
+
+  \section{The \texttt{apartment} Gem}
+
+  \begin{frame}{apartment}
+    \faGithub \quad \texttt{influitive/\alert{apartment}}\\
+    \vspace{0cm}\\
+    \textit{Database multi-tenancy for Rack (and Rails) applications}
+  \end{frame}
+
+  \begin{rubyslide}{\texttt{apartment}'s API}
+    Apartment::Tenant.create('pepsi')
+    # => create schema pepsi;
+
+    Apartment::Tenant.switch!('pepsi')
+    # => set search_path to pepsi;
+
+    Apartment::Tenant.drop('pepsi')
+    # => drop schema pepsi cascade;
+  \end{rubyslide}
+
+  \begin{rubyslide}{Installing  \texttt{apartment}}
+    # Gemfile
+
+    gem 'apartment'
+
+
+    # and then do a
+
+    rails g apartment:install
+  \end{rubyslide}
+
+  \begin{rubyslide}{Configuring  \texttt{apartment} - Elevator}
+    # config/initializers/apartment.rb
+
+    require 'apartment/elevators/subdomain'
+
+    Rails.application.config.middleware.use \
+      'Apartment::Elevators::Subdomain'
+
+    # (this is already the default config)
+  \end{rubyslide}
+
+  \begin{psqlslide}{Configuring  \texttt{apartment} - Subdomain Elevator}
+    GET pepsi.recipevault.com/recipes/1
+      => set search_path to 'pepsi';
+
+    Recipe.find(1)
+      => select * from recipes
+         where recipes.id = 1;
+
+      (aka)
+
+      => select * from pepsi.recipes
+         where recipes.id = 1;
+  \end{psqlslide}
+
+  \begin{rubyslide}{Configuring  \texttt{apartment} - Public Models}
+    # config/initializers/apartment.rb
+    Apartment.configure do |config|
+
+
+      # Keep companies in the public schema
+      config.excluded_models = %w(Company)
+
+
+    end
+  \end{rubyslide}
+
+  \begin{psqlslide}{Configuring  \texttt{apartment} - Public Models}
+    Apartment::Tenant.switch!('coke')
+
+    Company.all
+      => select * from public.companies;
+                       ^^^^^^
+
+    Recipe.all
+      => select * from recipes;
+
+      (aka)
+
+      => select * from coke.recipes;
+                       ^^^^
+  \end{psqlslide}
+
+  \begin{rubyslide}{Configuring  \texttt{apartment} - Schemas}
+    # config/initializers/apartment.rb
+    Apartment.configure do |config|
+
+      # Find subdomains from Companies
+      config.tenant_names = lambda do
+        Company.pluck(:subdomain)
+      end
+
+    end
+  \end{rubyslide}
+
+  \begin{bashslide}{Accessing Local Tenants}
+    pepsi.localhost:3000/recipes
+  \end{bashslide}
+
+  \begin{bashslide}{Accessing Local Tenants - lvh.me}
+    ~ % dig +noall +answer lvh.me @8.8.8.8
+
+    lvh.me.  1544  IN  A  127.0.0.1
+  \end{bashslide}
+
+  \begin{slide}{Accessing Local Tenants}
+    \texttt{pepsi.lvh.me:3000/recipes} \\
+    \\
+    \textit{instead of} \\
+    \\
+    \texttt{localhost:3000/recipes}
+  \end{slide}
+
+  \begin{bashslide}{Demo 3 / 3}
+    $ git checkout apartment
+  \end{bashslide}
+
+  \section{Caveats}
+
+  \begin{rubyslide}{Migrations}
+    # Every schema has to be migrated individually.
+    # Apartment does this transparently,
+    # but it could be problematic with
+    # thousands of tenants.
+    #
+    # It's probably fine.
+  \end{rubyslide}
+
+  \begin{rubyslide}{Rails \& Heroku Console}
+    # It seems annoying at first
+    Company.find_by(subdomain: 'pepsi').activate!
+    # but then you realize its worth it
+  \end{rubyslide}
+
+  \begin{rubyslide}{Background Jobs}
+    # For normal jobs: #solved
+    #
+    # This adds metadata containing the current
+    # tenant to the job payload, then transparently
+    # switch!s upon running the job
+    gem 'apartment-sidekiq'
+
+  \end{rubyslide}
+
+  \begin{rubyslide}{Background Jobs}
+    # For system jobs:
+    class MuhJob
+      def perform(*args)
+        Company.find_each do |company|
+          company.activate!
+
+          # Normal job stuff
+          Post.old.archive!
+        end
+      end
+    end
+  \end{rubyslide}
+
+  \begin{rubyslide}{Action Cable}
+    # It's a pretty quick fix.
+    class ApplicationCable::Connection < ActionCable::Connection::Base
+      identified_by :current_user, :tenant
+      #                            ^^^^^^^
+
+      def connect
+        self.tenant = request.subdomain
+        Apartment::Tenant.switch!(tenant)
+
+        # As usual
+        self.current_user = find_current_user
+      end
+  \end{rubyslide}
+
+  \section{Considerations}
+
+  \begin{frame}{Multi-Tennancy And You}
+    Think about what kind of tennancy model your application will have to
+    support. This seems obvious, but its actually so obvious that you might
+    overlook it and mess up. (It took me three tries to get this right)
+  \end{frame}
+
+  \begin{frame}{Multi-Tennancy And You}
+    Different types of tennancy do not necessarily correspond to distinct architecture solutions.
+    Although Salesforce and Basecamp are both B2B SaaS organizational products, they have very different use cases, business goals, and data requirements.
+  \end{frame}
+
+  \begin{frame}{Multi-Tennancy And You}
+    Thinking about user behaviour should tell you what kind of tennancy you should support,
+    but your data complexity and business requirements should guide you when implementing it.
+  \end{frame}
+
+\end{document}
